@@ -5,8 +5,6 @@ on:
     branches:
       - master
       - release/*
-  release:
-    types: [ created ]
 
 jobs:
   publish-gpr:
@@ -19,7 +17,7 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 20
-          registry-url: https://npm.pkg.github.com/
+          registry-url: https://npm.pkg.github.com/xprees
       - run: npm publish
         env:
           NODE_AUTH_TOKEN: ${{secrets.GITHUB_TOKEN}}
