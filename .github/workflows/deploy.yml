@@ -12,7 +12,7 @@ jobs:
     permissions:
       contents: read
       packages: write
-    environment: Production 
+    environment: Production
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -28,3 +28,4 @@ jobs:
         with:
           token: ${{ secrets.NPM_AUTH_TOKEN }}
           access: public
+          ignore-scripts: true
