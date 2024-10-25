@@ -19,6 +19,7 @@ jobs:
         with:
           node-version: 20
       - run: npm i
+      - uses: Aqovia/npm-version-increment@v1.1.0
       - uses: JS-DevTools/npm-publish@v3
         with:
           token: ${{ secrets.NPM_AUTH_TOKEN }}
