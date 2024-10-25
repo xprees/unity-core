@@ -20,5 +20,5 @@ jobs:
       - run: npm i
       - uses: JS-DevTools/npm-publish@v3
         with:
-          token: ${{ secrets.GITHUB_TOKEN }}
+          token: ${{ secrets.NPM_AUTH_TOKEN }}
           access: public
