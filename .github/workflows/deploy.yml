@@ -22,6 +22,7 @@ jobs:
         uses: justalemon/VersionPatcher@v0.8
         with:
           version: 1.0.${{ github.run_number }}
+          npm-files: 'package.json'
       - run: npm i
       - run: git config --global user.name "xprees"
       - run: git config --global user.email "xprees.developer@gmail.com"
