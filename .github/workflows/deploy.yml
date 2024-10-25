@@ -22,4 +22,3 @@ jobs:
         with:
           token: ${{ secrets.NPM_AUTH_TOKEN }}
           access: public
-          registry: "https://registry.npmjs.org"
