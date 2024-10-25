@@ -21,10 +21,6 @@ jobs:
       - run: npm i
       - run: git config --global user.name "xprees"
       - run: git config --global user.email "xprees.developer@gmail.com"
-      - uses: Aqovia/npm-version-increment@v1.1.0
-        with:
-          env: 
-            CHANGE_TYPE = patch
       - uses: JS-DevTools/npm-publish@v3
         with:
           token: ${{ secrets.NPM_AUTH_TOKEN }}
