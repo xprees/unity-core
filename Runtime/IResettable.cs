@@ -1,4 +1,4 @@
-﻿namespace Xprees.Core
+namespace Xprees.Core
 {
     public interface IResettable
     {
