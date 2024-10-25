@@ -1,12 +1,12 @@
-name: Publish to Github NPM registry 
+name: Publish to Github NPM registry
 
 on:
   push:
     branches:
-    - master
-    - release/*
+      - master
+      - release/*
   release:
-    types: [created]
+    types: [ created ]
 
 jobs:
   publish-gpr:
@@ -19,8 +19,7 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 20
-          registry-url: https://npm.pkg.github.com/xprees
-      - run: npm ci
+          registry-url: https://npm.pkg.github.com/
       - run: npm publish
         env:
           NODE_AUTH_TOKEN: ${{secrets.GITHUB_TOKEN}}
