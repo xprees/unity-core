@@ -17,10 +17,8 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 20
-          registry-url: https://registry.npmjs.org/
-          scope: '@xprees'
-          token: '${{secrets.NPM_AUTH_TOKEN}}'
       - run: npm i
-      - run: npm publish --access public
-        env:
-          NODE_AUTH_TOKEN: ${{secrets.NPM_AUTH_TOKEN}}
+      - uses: JS-DevTools/npm-publish@v3
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          registry: "https://npm.pkg.github.com"
