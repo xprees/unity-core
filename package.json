@@ -4,16 +4,23 @@
   "version": "1.0.1",
   "unity": "2021.3",
   "description": "This package contains core classes and interfaces for Unity projects. It is intended to be used as a dependency for other packages. By providing base classes in a separate package, you can easily update them across all your projects.",
-  "licensesUrl": "http://www.wtfpl.net/txt/copying/",
+  "license": "MIT",
   "category": "Core",
   "keywords": [
-    "base",
+    "Unity",
+    "core-classes",
     "ScriptableObjects"
   ],
   "author": {
     "name": "xprees",
     "email": "xprees.developer@gmail.com",
-    "url": "https://github.com/xprees"
+    "url": "https://xprees.com"
+  },
+  "bugs": {
+    "url": "https://github.com/xprees/unity-core/issues"
+  },
+  "repository": {
+    "url": "https://github.com/xprees/unity-core"
   },
   "hideInEditor": true
 }
