@@ -1,4 +1,5 @@
 using UnityEngine;
+using Xprees.Core.DescriptionAttribute;
 
 namespace Xprees.Core
 {
@@ -7,7 +8,7 @@ namespace Xprees.Core
     {
 #if UNITY_EDITOR
         [Tooltip("Description of the ScriptableObject. Editor only.")]
-        [TextArea]
+        [DescriptionTextArea]
         public string description;
 #endif
 
