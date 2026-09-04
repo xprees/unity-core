@@ -1,4 +1,3 @@
-using System.Reflection;
 using UnityEngine;
 using Xprees.Core.DescriptionAttribute;
 
@@ -17,13 +16,11 @@ namespace Xprees.Core
         [Tooltip("Defines how long this ScriptableObject's runtime state persists before being automatically restored.")]
         [SerializeField] private StateLifetime lifetime = StateLifetime.Scenario;
 
+        public StateLifetime ConfiguredLifetime => lifetime;
+
         public StateLifetime Lifetime
         {
-            get
-            {
-                var attr = GetType().GetCustomAttribute<StatefulLifetimeAttribute>(true);
-                return attr?.Lifetime ?? lifetime;
-            }
+            get => this.GetStateLifetime();
             set => lifetime = value;
         }
 

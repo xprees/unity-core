@@ -5,6 +5,7 @@ namespace Xprees.Core.Tests
 {
     public class StateSnapshotServiceTests
     {
+        [StatefulLifetime(StateLifetime.Scenario)]
         private class TestStatefulSO : ScriptableObject, IRuntimeStateOwner
         {
             public int intValue = 10;
@@ -17,8 +18,19 @@ namespace Xprees.Core.Tests
             }
         }
 
+        private class TestPlainSO : ScriptableObject
+        {
+            public int count = 5;
+        }
+
         [StatelessAsset]
         private class TestStatelessSO : ScriptableObject
+        {
+            public int count = 5;
+        }
+
+        [Stateless]
+        private class TestStatelessAliasSO : ScriptableObject
         {
             public int count = 5;
         }
@@ -65,9 +77,59 @@ namespace Xprees.Core.Tests
         }
 
         [Test]
+        public void RestoreAll_RestoresAllTrackedTargets()
+        {
+            var so1 = ScriptableObject.CreateInstance<TestStatefulSO>();
+            so1.intValue = 10;
+            so1.stringValue = "first";
+
+            var so2 = ScriptableObject.CreateInstance<TestStatefulSO>();
+            so2.intValue = 20;
+            so2.stringValue = "second";
+
+            StateSnapshotService.EnsureCaptured(so1);
+            StateSnapshotService.EnsureCaptured(so2);
+
+            // Mutate both
+            so1.intValue = 111;
+            so2.intValue = 222;
+
+            // RestoreAll
+            var restored = StateSnapshotService.RestoreAll();
+            Assert.AreEqual(2, restored);
+            Assert.AreEqual(10, so1.intValue);
+            Assert.AreEqual(20, so2.intValue);
+
+            Object.DestroyImmediate(so1);
+            Object.DestroyImmediate(so2);
+        }
+
+        [Test]
+        public void PlainScriptableObject_WithoutAttributeOrDescriptionBaseSO_IsStatelessAndIgnored()
+        {
+            var so = ScriptableObject.CreateInstance<TestPlainSO>();
+            Assert.IsTrue(so.IsStateless());
+            Assert.AreEqual(StateLifetime.Persistent, so.GetStateLifetime());
+            Assert.IsFalse(StateSnapshotService.EnsureCaptured(so));
+            Object.DestroyImmediate(so);
+        }
+
+        [Test]
         public void StatelessAsset_IsIgnoredBySnapshotEngine()
         {
             var so = ScriptableObject.CreateInstance<TestStatelessSO>();
+            so.count = 50;
+
+            StateSnapshotService.EnsureCaptured(so);
+            Assert.IsFalse(StateSnapshotService.HasSnapshot(so));
+
+            Object.DestroyImmediate(so);
+        }
+
+        [Test]
+        public void StatelessAttribute_IsIgnoredBySnapshotEngine()
+        {
+            var so = ScriptableObject.CreateInstance<TestStatelessAliasSO>();
             so.count = 50;
 
             StateSnapshotService.EnsureCaptured(so);

@@ -1,6 +1,5 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Reflection;
 using UnityEngine;
 #if UNITY_EDITOR
 using UnityEditor;
@@ -13,6 +12,10 @@ namespace Xprees.Core
     public static class StateSnapshotService
     {
         private readonly static Dictionary<int, string> snapshots = new();
+        private readonly static HashSet<int> restoringEntities = new();
+#if UNITY_EDITOR
+        private readonly static Dictionary<int, ScriptableObject> trackedTargets = new();
+#endif
 
         /// Total number of currently tracked baseline snapshots in memory.
         public static int SnapshotCount => snapshots.Count;
@@ -35,6 +38,9 @@ namespace Xprees.Core
             {
                 var json = JsonUtility.ToJson(target);
                 snapshots[entityId] = json;
+#if UNITY_EDITOR
+                trackedTargets[entityId] = target;
+#endif
                 return true;
             }
             catch (Exception ex)
@@ -61,9 +67,24 @@ namespace Xprees.Core
                 return false;
             }
 
+            // Re-entrancy guard to prevent infinite mutual recursion (e.g. scenario resetting itself)
+            if (!restoringEntities.Add(entityId)) return false;
+
             try
             {
                 JsonUtility.FromJsonOverwrite(json, target);
+
+                if (target is IRuntimeStateOwner stateOwner)
+                {
+                    stateOwner.ClearTransientState();
+                }
+
+                // Prevent compound scenario orchestrators from recursively resetting
+                if (target.GetType().Name != "ScenarioSO" && target is IResettable resettable)
+                {
+                    resettable.ResetState();
+                }
+
                 return true;
             }
             catch (Exception ex)
@@ -72,6 +93,56 @@ namespace Xprees.Core
                     target);
                 return false;
             }
+            finally
+            {
+                restoringEntities.Remove(entityId);
+            }
+        }
+
+        /// Restores all currently tracked ScriptableObjects to their baseline state.
+        public static int RestoreAll()
+        {
+            var restoredCount = 0;
+#if UNITY_EDITOR
+            foreach (var kvp in trackedTargets)
+            {
+                var target = kvp.Value;
+                if (!target)
+                {
+                    target = EditorUtility.EntityIdToObject(kvp.Key) as ScriptableObject;
+                }
+
+                if (!target || !snapshots.TryGetValue(kvp.Key, out var json)) continue;
+                if (!restoringEntities.Add(kvp.Key)) continue;
+
+                try
+                {
+                    JsonUtility.FromJsonOverwrite(json, target);
+
+                    if (target is IRuntimeStateOwner stateOwner)
+                    {
+                        stateOwner.ClearTransientState();
+                    }
+
+                    if (target.GetType().Name != "ScenarioSO" && target is IResettable resettable)
+                    {
+                        resettable.ResetState();
+                    }
+
+                    EditorUtility.ClearDirty(target);
+                    restoredCount++;
+                }
+                catch (Exception ex)
+                {
+                    Debug.LogError($"[StateSnapshotService] Failed to restore target '{target.name}': {ex.Message}", target);
+                }
+                finally
+                {
+                    restoringEntities.Remove(kvp.Key);
+                }
+            }
+#endif
+            return restoredCount;
         }
 
         /// Checks whether a baseline snapshot currently exists for the specified ScriptableObject.
@@ -80,7 +151,7 @@ namespace Xprees.Core
         /// Gets the raw JSON snapshot string for debugging / state inspector inspection.
         public static string GetSnapshotJson(ScriptableObject target)
         {
-            if (target != null && snapshots.TryGetValue(target.GetEntityId(), out var json))
+            if (target && snapshots.TryGetValue(target.GetEntityId(), out var json))
             {
                 return json;
             }
@@ -92,11 +163,23 @@ namespace Xprees.Core
         public static void Evict(ScriptableObject target)
         {
             if (target == null) return;
-            snapshots.Remove(target.GetEntityId());
+            var entityId = target.GetEntityId();
+            snapshots.Remove(entityId);
+            restoringEntities.Remove(entityId);
+#if UNITY_EDITOR
+            trackedTargets.Remove(entityId);
+#endif
         }
 
         /// Clears all stored state snapshots.
-        public static void ClearAll() => snapshots.Clear();
+        public static void ClearAll()
+        {
+            snapshots.Clear();
+            restoringEntities.Clear();
+#if UNITY_EDITOR
+            trackedTargets.Clear();
+#endif
+        }
 
         /// Alias for ClearAll to provide clear naming.
         public static void ClearAllSnapshots() => ClearAll();
@@ -118,35 +201,28 @@ namespace Xprees.Core
 
         private static void OnPlayModeStateChanged(PlayModeStateChange change)
         {
-            // When exiting Play Mode back to Edit Mode, purge all baseline snapshots
-            // so any subsequent Inspector edits in Edit Mode immediately become the new baseline.
+            // When exiting Play Mode, restore before scene objects begin tearing down
+            if (change == PlayModeStateChange.ExitingPlayMode)
+            {
+                RestoreAll();
+                return;
+            }
+
+            // Once fully transitioned back to Edit Mode, all scene unload and OnDisable/OnDestroy
+            // lifecycle calls have finished. Re-run RestoreAll() to guarantee any mutations occurring
+            // during teardown are cleanly reverted, then clear the snapshot tracking.
             if (change == PlayModeStateChange.EnteredEditMode)
             {
+                var count = RestoreAll();
+                if (count > 0)
+                {
+                    Debug.Log($"[StateSnapshotService] Restored {count} stateful ScriptableObjects back to pre-play baseline.");
+                }
+
                 ClearAll();
             }
         }
 #endif
     }
 
-    /// Utility extensions for resolving lifecycle and stateless status of ScriptableObjects.
-    public static class StateLifetimeExtensions
-    {
-        public static StateLifetime GetStateLifetime(this ScriptableObject so)
-        {
-            if (!so) return StateLifetime.Scenario;
-
-            var attr = so.GetType().GetCustomAttribute<StatefulLifetimeAttribute>(true);
-            if (attr != null) return attr.Lifetime;
-
-            if (so is DescriptionBaseSO descSo) return descSo.Lifetime;
-
-            return StateLifetime.Scenario;
-        }
-
-        public static bool IsStateless(this ScriptableObject so)
-        {
-            if (!so) return true;
-            return so.GetType().GetCustomAttribute<StatelessAssetAttribute>(true) != null;
-        }
-    }
 }
