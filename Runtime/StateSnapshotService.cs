@@ -1,18 +1,24 @@
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.Reflection;
 using UnityEngine;
+using Object = UnityEngine.Object;
 #if UNITY_EDITOR
 using UnityEditor;
 #endif
 
 namespace Xprees.Core
 {
+    // TODO later consider adding limits to not blow up memory - probably not an issue
+    // TODO consider using OdinSerializer for more robust serialization in future
     /// Core engine service for zero-boilerplate capturing and in-place restoration
     /// of ScriptableObject serialized state between scenario runs.
     public static class StateSnapshotService
     {
         private readonly static Dictionary<int, string> snapshots = new();
         private readonly static HashSet<int> restoringEntities = new();
+        private readonly static ConcurrentDictionary<Type, FieldInfo[]> snapshotIgnoreFieldsCache = new();
 #if UNITY_EDITOR
         private readonly static Dictionary<int, ScriptableObject> trackedTargets = new();
 #endif
@@ -72,17 +78,11 @@ namespace Xprees.Core
 
             try
             {
-                JsonUtility.FromJsonOverwrite(json, target);
+                RestoreFromJson(json, target);
 
                 if (target is IRuntimeStateOwner stateOwner)
                 {
                     stateOwner.ClearTransientState();
-                }
-
-                // Prevent compound scenario orchestrators from recursively resetting
-                if (target.GetType().Name != "ScenarioSO" && target is IResettable resettable)
-                {
-                    resettable.ResetState();
                 }
 
                 return true;
@@ -117,16 +117,11 @@ namespace Xprees.Core
 
                 try
                 {
-                    JsonUtility.FromJsonOverwrite(json, target);
+                    RestoreFromJson(json, target);
 
                     if (target is IRuntimeStateOwner stateOwner)
                     {
                         stateOwner.ClearTransientState();
-                    }
-
-                    if (target.GetType().Name != "ScenarioSO" && target is IResettable resettable)
-                    {
-                        resettable.ResetState();
                     }
 
                     EditorUtility.ClearDirty(target);
@@ -145,6 +140,58 @@ namespace Xprees.Core
             return restoredCount;
         }
 
+        /// Restores serialized fields from JSON while preserving fields marked with [SnapshotIgnore].
+        private static void RestoreFromJson(string json, ScriptableObject target)
+        {
+            var ignoredFields = GetSnapshotIgnoreFields(target.GetType());
+            object[] preservedValues = null;
+            if (ignoredFields.Length > 0)
+            {
+                preservedValues = new object[ignoredFields.Length];
+                for (var i = 0; i < ignoredFields.Length; i++)
+                {
+                    preservedValues[i] = ignoredFields[i].GetValue(target);
+                }
+            }
+
+            JsonUtility.FromJsonOverwrite(json, target);
+            if (ignoredFields.Length <= 0 || preservedValues == null) return;
+
+            for (var i = 0; i < ignoredFields.Length; i++)
+            {
+                ignoredFields[i].SetValue(target, preservedValues[i]);
+            }
+        }
+
+        private static FieldInfo[] GetSnapshotIgnoreFields(Type type)
+        {
+            if (snapshotIgnoreFieldsCache.TryGetValue(type, out var fields))
+            {
+                return fields;
+            }
+
+            var list = new List<FieldInfo>();
+            var current = type;
+            while (current != null && current != typeof(ScriptableObject) && current != typeof(Object) && current != typeof(object))
+            {
+                var currentFields =
+                    current.GetFields(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.DeclaredOnly);
+                foreach (var field in currentFields)
+                {
+                    if (Attribute.IsDefined(field, typeof(SnapshotIgnoreAttribute)))
+                    {
+                        list.Add(field);
+                    }
+                }
+
+                current = current.BaseType;
+            }
+
+            var result = list.Count > 0 ? list.ToArray() : Array.Empty<FieldInfo>();
+            snapshotIgnoreFieldsCache[type] = result;
+            return result;
+        }
+
         /// Checks whether a baseline snapshot currently exists for the specified ScriptableObject.
         public static bool HasSnapshot(ScriptableObject target) => target && snapshots.ContainsKey(target.GetEntityId());
 
@@ -159,7 +206,7 @@ namespace Xprees.Core
             return null;
         }
 
-        /// Evicts a specific ScriptableObject snapshot from memory (e.g. on Addressables unload).
+        /// Evicts a specific ScriptableObject snapshot from memory.
         public static void Evict(ScriptableObject target)
         {
             if (target == null) return;
@@ -224,5 +271,4 @@ namespace Xprees.Core
         }
 #endif
     }
-
 }

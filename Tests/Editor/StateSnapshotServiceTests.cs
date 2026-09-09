@@ -18,6 +18,13 @@ namespace Xprees.Core.Tests
             }
         }
 
+        [StatefulLifetime(StateLifetime.Scenario)]
+        private class TestSnapshotIgnoreSO : ScriptableObject
+        {
+            public int capturedValue = 10;
+            [SnapshotIgnore] public string ignoredValue = "initial";
+        }
+
         private class TestPlainSO : ScriptableObject
         {
             public int count = 5;
@@ -72,6 +79,29 @@ namespace Xprees.Core.Tests
 
             Assert.AreEqual(42, so.intValue);
             Assert.AreEqual("pristine", so.stringValue);
+
+            Object.DestroyImmediate(so);
+        }
+
+        [Test]
+        public void SnapshotIgnore_PreservesFieldValueAcrossRestore()
+        {
+            var so = ScriptableObject.CreateInstance<TestSnapshotIgnoreSO>();
+            so.capturedValue = 10;
+            so.ignoredValue = "before_capture";
+
+            StateSnapshotService.EnsureCaptured(so);
+
+            // Mutate both
+            so.capturedValue = 99;
+            so.ignoredValue = "mutated_after_capture";
+
+            StateSnapshotService.Restore(so);
+
+            // capturedValue should be restored to baseline (10)
+            Assert.AreEqual(10, so.capturedValue);
+            // ignoredValue was excluded from overwrite, so it retains its mutated value ("mutated_after_capture")
+            Assert.AreEqual("mutated_after_capture", so.ignoredValue);
 
             Object.DestroyImmediate(so);
         }
