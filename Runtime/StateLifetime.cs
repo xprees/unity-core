@@ -46,9 +46,9 @@ namespace Xprees.Core
     {
     }
 
-    /// Marks a ScriptableObject type as entirely stateless/immutable, skipping it from state snapshots and scenario resetting.
+    /// Marks a ScriptableObject type or field as entirely stateless/immutable, skipping it from state snapshots and scenario resetting.
     /// Convenient alias for [StatelessAsset].
-    [AttributeUsage(AttributeTargets.Class, Inherited = true)]
+    [AttributeUsage(AttributeTargets.Class | AttributeTargets.Field, Inherited = true)]
     public sealed class StatelessAttribute : Attribute
     {
     }

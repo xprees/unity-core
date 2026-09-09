@@ -8,6 +8,7 @@ namespace Xprees.Core
     public class DescriptionBaseSO : ScriptableObject, IResettable
     {
 #if UNITY_EDITOR
+        [SnapshotIgnore]
         [Tooltip("Description of the ScriptableObject. Editor only.")]
         [DescriptionTextArea]
         public string description;
