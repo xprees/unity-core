@@ -1,4 +1,4 @@
-﻿namespace Xprees.Core
+namespace Xprees.Core
 {
     /// Implemented by objects that have transient, non-serialized runtime state
     /// (e.g., event subscriptions, CancellationTokenSources, active caches, UI transient variables)
