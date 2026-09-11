@@ -1,6 +1,6 @@
 ﻿{
   "name": "cz.xprees.core.editor",
-  "rootNamespace": "Xprees.Core",
+  "rootNamespace": "Xprees.Core.Editor",
   "references": [
     "GUID:999c2ca78ab34358a1222750376a501c"
   ],

@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.Linq;
 using System.Reflection;
 using UnityEngine;
 using Object = UnityEngine.Object;
@@ -12,8 +13,9 @@ namespace Xprees.Core
 {
     // TODO later consider adding limits to not blow up memory - probably not an issue
     // TODO consider using OdinSerializer for more robust serialization in future
+
     /// Core engine service for zero-boilerplate capturing and in-place restoration
-    /// of ScriptableObject serialized state between scenario runs.
+    /// of ScriptableObject serialized state across scenario and session boundaries.
     public static class StateSnapshotService
     {
         private readonly static Dictionary<int, string> snapshots = new();
@@ -96,6 +98,33 @@ namespace Xprees.Core
             finally
             {
                 restoringEntities.Remove(entityId);
+            }
+        }
+
+        /// Restores a collection of ScriptableObjects to their baseline state up to the specified max lifetime.
+        /// Multi-pass restoration:
+        /// Pass 1 captures the baseline for any uncaptured objects before modifying state.
+        /// Pass 2 restores serialized fields and triggers IRuntimeStateOwner.ClearTransientState.
+        public static void RestoreAll(IEnumerable<ScriptableObject> targets, StateLifetime maxLifetime = StateLifetime.Scenario)
+        {
+            if (targets == null) return;
+
+            var targetsList = targets as ScriptableObject[] ?? targets.ToArray();
+
+            // Pass 1: Ensure baseline is captured for ALL objects before any object is restored
+            foreach (var so in targetsList)
+            {
+                if (!so || so.IsStateless() || so.GetStateLifetime() > maxLifetime) continue;
+
+                EnsureCaptured(so);
+            }
+
+            // Pass 2: Restore all objects to baseline (and clear transient state via Restore)
+            foreach (var so in targetsList)
+            {
+                if (!so || so.IsStateless() || so.GetStateLifetime() > maxLifetime) continue;
+
+                Restore(so);
             }
         }
 
@@ -236,39 +265,6 @@ namespace Xprees.Core
         /// SubsystemRegistration executes before any Awake/OnEnable calls when entering Play Mode,
         /// ensuring static state dictionaries from previous play sessions or editor runs are completely purged.
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
-        private static void ResetStatics() => ClearAll();
-
-#if UNITY_EDITOR
-        [InitializeOnLoadMethod]
-        private static void InitEditorLifecycle()
-        {
-            EditorApplication.playModeStateChanged -= OnPlayModeStateChanged;
-            EditorApplication.playModeStateChanged += OnPlayModeStateChanged;
-        }
-
-        private static void OnPlayModeStateChanged(PlayModeStateChange change)
-        {
-            // When exiting Play Mode, restore before scene objects begin tearing down
-            if (change == PlayModeStateChange.ExitingPlayMode)
-            {
-                RestoreAll();
-                return;
-            }
-
-            // Once fully transitioned back to Edit Mode, all scene unload and OnDisable/OnDestroy
-            // lifecycle calls have finished. Re-run RestoreAll() to guarantee any mutations occurring
-            // during teardown are cleanly reverted, then clear the snapshot tracking.
-            if (change == PlayModeStateChange.EnteredEditMode)
-            {
-                var count = RestoreAll();
-                if (count > 0)
-                {
-                    Debug.Log($"[StateSnapshotService] Restored {count} stateful ScriptableObjects back to pre-play baseline.");
-                }
-
-                ClearAll();
-            }
-        }
-#endif
+        private static void ResetStaticFields() => ClearAll();
     }
 }
