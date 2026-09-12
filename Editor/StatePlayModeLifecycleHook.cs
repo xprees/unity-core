@@ -41,13 +41,17 @@ namespace Xprees.Core.Editor
         }
 
         /// Resets loaded ScriptableObjects decorated with [ResetOnPlayMode] matching the specified timing.
-        /// Respects StateLifetime (skips StateLifetime.Persistent).
+        /// Persistent objects keep serialized values across sessions, but their transient state (e.g. event listeners)
+        /// is cleared upon exiting Play Mode.
         public static void ResetPlayModeObjects(PlayModeResetTiming timing)
         {
             var loadedObjects = Resources.FindObjectsOfTypeAll<ScriptableObject>();
             foreach (var so in loadedObjects)
             {
-                if (!so || so.IsStateless() || so.GetStateLifetime() == StateLifetime.Persistent) continue;
+                if (!so || so.IsStateless()) continue;
+
+                var isPersistent = so.GetStateLifetime() == StateLifetime.Persistent;
+                if (isPersistent && (timing & PlayModeResetTiming.ExitPlayMode) == 0) continue;
 
                 var type = so.GetType();
                 var configuredTiming = GetPlayModeTiming(type);
@@ -56,9 +60,11 @@ namespace Xprees.Core.Editor
                 var resetMethod = type.GetMethod("ResetToDefault", BindingFlags.Public | BindingFlags.Instance);
                 if (resetMethod != null)
                 {
-                    resetMethod.Invoke(so, null);
+                    if (!isPersistent) resetMethod.Invoke(so, null);
+                    return;
                 }
-                else if (so is IRuntimeStateOwner stateOwner)
+
+                if (so is IRuntimeStateOwner stateOwner)
                 {
                     stateOwner.ClearTransientState();
                 }

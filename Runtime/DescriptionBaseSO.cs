@@ -5,7 +5,7 @@ namespace Xprees.Core
 {
     /// Base class for ScriptableObjects with a public description field visible only in Editor.
     /// Supports lifecycle-scoped state management.
-    public class DescriptionBaseSO : ScriptableObject, IResettable
+    public class DescriptionBaseSO : ScriptableObject
     {
 #if UNITY_EDITOR
         [SnapshotIgnore]
@@ -23,10 +23,6 @@ namespace Xprees.Core
         {
             get => this.GetStateLifetime();
             set => lifetime = value;
-        }
-
-        public virtual void ResetState()
-        {
         }
     }
 }
