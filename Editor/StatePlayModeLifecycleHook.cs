@@ -61,7 +61,7 @@ namespace Xprees.Core.Editor
                 if (resetMethod != null)
                 {
                     if (!isPersistent) resetMethod.Invoke(so, null);
-                    return;
+                    continue;
                 }
 
                 if (so is IRuntimeStateOwner stateOwner)
