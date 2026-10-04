@@ -25,18 +25,54 @@ namespace Xprees.Core.Editor
             switch (change)
             {
                 case PlayModeStateChange.EnteredPlayMode:
+                    CaptureBaselines();
                     ResetPlayModeObjects(PlayModeResetTiming.EnterPlayMode);
                     break;
 
                 case PlayModeStateChange.ExitingPlayMode:
                     // Automatically revert all mutated ScriptableObjects to baseline before returning to Edit Mode
                     StateSnapshotService.RestoreAll();
+                    ClearTransientStateOfLoadedObjects();
                     ResetPlayModeObjects(PlayModeResetTiming.ExitPlayMode);
                     break;
 
                 case PlayModeStateChange.EnteredEditMode:
                     StateSnapshotService.ClearAll();
                     break;
+            }
+        }
+
+        /// Captures the baseline of every loaded stateful asset when play mode starts.
+        /// Scenario starts capture the assets they reach, but test scenes (a computer opened without a scenario) mutate serialized state
+        /// (lists of emails, chats, apps...) that nothing captured, so it was never restored on exit. Capturing is idempotent and skips
+        /// Persistent/stateless assets. Graphs are excluded: their serialized content is authored only and they reset through ClearTransientState.
+        public static void CaptureBaselines()
+        {
+            foreach (var so in Resources.FindObjectsOfTypeAll<ScriptableObject>())
+            {
+                if (so is DescriptionBaseSO) StateSnapshotService.EnsureCaptured(so);
+            }
+        }
+
+        /// With domain reload disabled, non-serialized runtime state (parsers, cancellation sources, caches...) of an asset survives into the next play session.
+        /// Snapshots only cover assets that were captured during the session (usually through a scenario start), so assets used outside a scenario
+        /// (test scenes, manually opened apps) would never be cleared. This clears every loaded stateful asset, it's idempotent for already restored ones.
+        /// Persistent assets are skipped: their transient state (e.g. event listeners) is wired in OnEnable and must survive.
+        public static void ClearTransientStateOfLoadedObjects()
+        {
+            foreach (var so in Resources.FindObjectsOfTypeAll<ScriptableObject>())
+            {
+                if (!so || so is not IRuntimeStateOwner stateOwner) continue;
+                if (so.IsStateless() || so.GetStateLifetime() == StateLifetime.Persistent) continue;
+
+                try
+                {
+                    stateOwner.ClearTransientState();
+                }
+                catch (Exception e)
+                {
+                    Debug.LogException(e, so);
+                }
             }
         }
 
