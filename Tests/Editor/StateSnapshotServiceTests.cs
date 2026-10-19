@@ -181,6 +181,45 @@ namespace Xprees.Core.Tests
         }
 
         [Test]
+        public void RestoreAll_FirstCapture_KeepsValuesAndClearsTransientState()
+        {
+            var so = ScriptableObject.CreateInstance<TestStatefulSO>();
+            so.intValue = 7;
+            so.transientFlag = true;
+
+            StateSnapshotService.RestoreAll(new ScriptableObject[] { so });
+
+            Assert.IsTrue(StateSnapshotService.HasSnapshot(so));
+            Assert.AreEqual(7, so.intValue);
+            Assert.IsFalse(so.transientFlag);
+
+            // The second run restores from the snapshot taken by the first one
+            so.intValue = 99;
+            StateSnapshotService.RestoreAll(new ScriptableObject[] { so });
+            Assert.AreEqual(7, so.intValue);
+
+            Object.DestroyImmediate(so);
+        }
+
+        [Test]
+        public void DescriptionBaseSO_LifetimeIsPerAsset()
+        {
+            var scenarioScoped = ScriptableObject.CreateInstance<DescriptionBaseSO>();
+            var persistent = ScriptableObject.CreateInstance<DescriptionBaseSO>();
+            persistent.Lifetime = StateLifetime.Persistent;
+
+            // Twice each: the second call goes through the per-type cache
+            for (var i = 0; i < 2; i++)
+            {
+                Assert.AreEqual(StateLifetime.Scenario, scenarioScoped.GetStateLifetime());
+                Assert.AreEqual(StateLifetime.Persistent, persistent.GetStateLifetime());
+            }
+
+            Object.DestroyImmediate(scenarioScoped);
+            Object.DestroyImmediate(persistent);
+        }
+
+        [Test]
         public void ClearTransientState_ResetsNonSerializedFlags()
         {
             var so = ScriptableObject.CreateInstance<TestStatefulSO>();

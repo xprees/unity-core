@@ -53,7 +53,9 @@ A centralized, pure runtime service that handles:
 - **`Restore(ScriptableObject target)`**: Reverts serialized fields in-place from baseline JSON and triggers
   `IRuntimeStateOwner.ClearTransientState()`.
 - **`RestoreAll(IEnumerable<ScriptableObject> targets, StateLifetime maxLifetime)`**: Multi-pass restoration that ensures all targets are
-  baseline-captured before restoring, preventing inter-object dependency races.
+  baseline-captured before restoring, preventing inter-object dependency races. Targets captured by the same call are
+  already at their
+  baseline: they skip the JSON write-back and only get `ClearTransientState()`.
 - **`[SnapshotIgnore]`**: Decorate fields to preserve their values across snapshot restorations.
 
 ### 3. Editor PlayMode Lifecycle (`StatePlayModeLifecycleHook`)

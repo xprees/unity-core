@@ -61,7 +61,9 @@ namespace Xprees.Core
 
         /// Restores the ScriptableObject to its captured baseline state in-place.
         /// If no baseline has been captured yet, the current state is captured as baseline.
-        public static bool Restore(ScriptableObject target)
+        public static bool Restore(ScriptableObject target) => Restore(target, true);
+
+        private static bool Restore(ScriptableObject target, bool overwriteFromSnapshot)
         {
             if (!target || target.IsStateless() || target.GetStateLifetime() == StateLifetime.Persistent)
             {
@@ -80,7 +82,7 @@ namespace Xprees.Core
 
             try
             {
-                RestoreFromJson(json, target);
+                if (overwriteFromSnapshot) RestoreFromJson(json, target);
 
                 if (target is IRuntimeStateOwner stateOwner)
                 {
@@ -110,21 +112,23 @@ namespace Xprees.Core
             if (targets == null) return;
 
             var targetsList = targets as ScriptableObject[] ?? targets.ToArray();
+            var capturedNow = new HashSet<ScriptableObject>();
 
             // Pass 1: Ensure baseline is captured for ALL objects before any object is restored
             foreach (var so in targetsList)
             {
                 if (!so || so.IsStateless() || so.GetStateLifetime() > maxLifetime) continue;
 
-                EnsureCaptured(so);
+                if (EnsureCaptured(so)) capturedNow.Add(so);
             }
 
-            // Pass 2: Restore all objects to baseline (and clear transient state via Restore)
+            // Pass 2: Restore all objects to baseline (and clear transient state via Restore).
+            // An object captured in pass 1 already is its baseline, writing the same JSON back would only cost time, so it just clears transient state.
             foreach (var so in targetsList)
             {
                 if (!so || so.IsStateless() || so.GetStateLifetime() > maxLifetime) continue;
 
-                Restore(so);
+                Restore(so, !capturedNow.Contains(so));
             }
         }
 

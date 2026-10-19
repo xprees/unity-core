@@ -11,45 +11,21 @@ namespace Xprees.Core
     /// Utility extensions for resolving lifecycle and stateless status of ScriptableObjects.
     public static class StateLifetimeExtensions
     {
-        private readonly static ConcurrentDictionary<Type, StateLifetime?> _lifetimeCache = new();
+        // Lifetime from [StatefulLifetime] per type, null when the type has none. The miss is cached too: the reflection lookup is slow
+        // (WebGL especially) and runs several times per asset on every scenario start.
+        private readonly static ConcurrentDictionary<Type, StateLifetime?> _attributeLifetimeCache = new();
         private readonly static ConcurrentDictionary<Type, bool> _statelessCache = new();
 
         public static StateLifetime GetStateLifetime(this ScriptableObject so)
         {
             if (!so) return StateLifetime.Persistent;
 
-            var type = so.GetType();
-            if (_lifetimeCache.TryGetValue(type, out var cached) && cached.HasValue)
-            {
-                return cached.Value;
-            }
+            var attributeLifetime = _attributeLifetimeCache.GetOrAdd(so.GetType(),
+                type => type.GetCustomAttribute<StatefulLifetimeAttribute>(true)?.Lifetime);
+            if (attributeLifetime.HasValue) return attributeLifetime.Value;
 
-#if UNITY_EDITOR
-            var attrTypes = TypeCache.GetTypesWithAttribute<StatefulLifetimeAttribute>();
-            if (attrTypes.Contains(type))
-            {
-                var attr = (StatefulLifetimeAttribute) Attribute.GetCustomAttribute(type, typeof(StatefulLifetimeAttribute), true);
-                if (attr != null)
-                {
-                    _lifetimeCache[type] = attr.Lifetime;
-                    return attr.Lifetime;
-                }
-            }
-#endif
-            var fallbackAttr = type.GetCustomAttribute<StatefulLifetimeAttribute>(true);
-            if (fallbackAttr != null)
-            {
-                _lifetimeCache[type] = fallbackAttr.Lifetime;
-                return fallbackAttr.Lifetime;
-            }
-
-            if (so is DescriptionBaseSO descSo)
-            {
-                return descSo.ConfiguredLifetime;
-            }
-
-            _lifetimeCache[type] = StateLifetime.Persistent;
-            return StateLifetime.Persistent;
+            // Per asset, so it is not cached
+            return so is DescriptionBaseSO descSo ? descSo.ConfiguredLifetime : StateLifetime.Persistent;
         }
 
         public static bool IsStateless(this ScriptableObject so)
