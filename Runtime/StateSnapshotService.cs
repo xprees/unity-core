@@ -18,11 +18,11 @@ namespace Xprees.Core
     /// of ScriptableObject serialized state across scenario and session boundaries.
     public static class StateSnapshotService
     {
-        private readonly static Dictionary<int, string> snapshots = new();
-        private readonly static HashSet<int> restoringEntities = new();
+        private readonly static Dictionary<EntityId, string> snapshots = new();
+        private readonly static HashSet<EntityId> restoringEntities = new();
         private readonly static ConcurrentDictionary<Type, FieldInfo[]> snapshotIgnoreFieldsCache = new();
 #if UNITY_EDITOR
-        private readonly static Dictionary<int, ScriptableObject> trackedTargets = new();
+        private readonly static Dictionary<EntityId, ScriptableObject> trackedTargets = new();
 #endif
 
         /// Total number of currently tracked baseline snapshots in memory.
